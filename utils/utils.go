@@ -36,7 +36,7 @@ func validateScreenRecording(file io.Reader, filename string) bool {
     }
     mimeType := http.DetectContentType(buffer)
     switch mimeType {
-    case "video/mp4", "video/avi", "video/quicktime", "video/x-matroska":
+    case "video/mp4", "video/avi", "video/webm", "video/x-msvideo", "video/flv", "video/quicktime", "video/x-matroska":
         return true
     default:
         return false

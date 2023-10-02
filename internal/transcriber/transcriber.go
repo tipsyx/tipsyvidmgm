@@ -15,7 +15,7 @@ func TranscribeAudio(filename string, ch *amqp.Channel) (string, error) {
         return "", err
     }
 
-    apiKey := "YOUR_WHISPER_API_KEY"
+    apiKey := ""
 
     req, err := http.NewRequest("POST", "https://api.whisper.ai/v1/recognize", bytes.NewReader(audio))
     if err != nil {

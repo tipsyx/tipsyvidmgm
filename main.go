@@ -144,7 +144,11 @@ func main() {
     r.GET("/videodetails/:id", func(c *gin.Context) {
         handlers.ShowVideoDetails(c, db)
     })
-
+    
+    r.GET("/getvideo/:id", func(c *gin.Context) {
+    GetVideoByID(c, db)
+    })
+    
     fmt.Println("Server is listening on :8080")
     r.Run(":8080")
 

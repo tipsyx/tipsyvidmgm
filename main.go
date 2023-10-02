@@ -1,0 +1,159 @@
+package main
+
+import (
+    "bytes"
+    "database/sql"
+    "fmt"
+    "html/template"
+    "io"
+    "io/ioutil"
+    "log"
+    "net/http"
+    "os"
+    "os/signal"
+    "path/filepath"
+    "strconv"
+    "strings"
+    "syscall"
+
+
+    "github.com/gin-gonic/gin"
+    _ "github.com/jinzhu/gorm/dialects/mysql"
+    "github.com/jinzhu/gorm"
+    "github.com/streadway/amqp"
+    "github.com/gerow/thumbs"
+    
+    "github.com/tipsyx/tipsyvidmgm/internal/handlers"
+    "github.com/tipsyx/tipsyvidmgm/internal/worker"
+    "github.com/tipsyx/tipsyvidmgm/config"
+    "github.com/tipsyx/tipsyvidmgm/utils"
+)
+
+var ch *amqp.Channel
+var db *gorm.DB
+
+type Video struct {
+    gorm.Model
+    Filename     string
+    Transcription string
+}
+
+func main() {
+    r := gin.Default()
+
+    var err error
+    db, err = gorm.Open("mysql", config.DatabaseDSN)
+    if err != nil {
+        log.Fatalf("Database connection error: %v\n", err)
+    }
+    defer db.Close()
+
+    os.MkdirAll("./uploads", os.ModePerm)
+
+   conn, err := amqp.Dial(config.RabbitMQURL)
+    if err != nil {
+        log.Fatalf("RabbitMQ connection error: %v\n", err)
+        return
+    }
+    defer conn.Close()
+
+    ch, err := conn.Channel()
+    if err != nil {
+        log.Fatalf("Failed to open a channel: %v", err)
+        return
+    }
+    defer ch.Close()
+
+    err = ch.Publish(
+        "videomgmex", // Exchange name
+        "routekey",   // Routing key
+        false,
+        false,
+        amqp.Publishing{
+            ContentType: "text/plain",
+            Body:        []byte("Hello, RabbitMQ!"),
+        },
+    )
+    if err != nil {
+        log.Fatalf("Failed to publish a message: %v", err)
+    }
+
+    msgs, err := ch.Consume(
+        "queueA", // Queue name
+        "",       // Consumer name
+        true,
+        false,
+        false, // No-local
+        false, // No-wait
+        nil,   // Arguments
+    )
+    if err != nil {
+        log.Fatalf("Failed to register: %v", err)
+    }
+
+
+    go func() {
+        for msg := range msgs {
+            log.Printf("Received a message: %s", msg.Body)
+        }
+    }()
+
+    transcriptionWorker := worker.NewTranscriptionWorker(ch, db)
+    go transcriptionWorker.Start()
+
+    
+    r.POST("/upload", func(c *gin.Context) {
+    file, _, err := c.Request.FormFile("video")
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Error retrieving the file"})
+        return
+    }
+    defer file.Close()
+
+    isValid := utils.ValidateVideoFile(file)
+    if !isValid {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video file format"})
+        return
+    }
+
+    handlers.HandleUpload(c, ch, db)
+    })
+
+    
+
+   r.GET("/playback", func(c *gin.Context) {
+    videoFileName := c.Query("videoFileName")
+
+    if videoFileName == "" {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Missing videoFileName parameter"})
+        return
+    }
+
+    handlers.ServePlaybackPage(c, db, videoFileName)
+    })
+
+
+    r.GET("/listvideos", func(c *gin.Context) {
+        handlers.ListUploadedVideos(c)
+    })
+
+    r.POST("/deletevideo", func(c *gin.Context) {
+        handlers.DeleteVideoByID(c, db)
+    })
+
+    r.GET("/videodetails/:id", func(c *gin.Context) {
+        handlers.ShowVideoDetails(c, db)
+    })
+
+    fmt.Println("Server is listening on :8080")
+    r.Run(":8080")
+
+    stop := make(chan os.Signal, 1)
+    signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+    <-stop
+
+    fmt.Println("Shutting down...")
+    db.Close()
+
+    fmt.Println("Server has shut down.")
+}

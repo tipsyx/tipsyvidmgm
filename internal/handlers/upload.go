@@ -15,8 +15,7 @@ import (
 )
 
 func HandleUpload(c *gin.Context, ch *amqp.Channel, db *gorm.DB) {
-    maxUploadSize := int64(200 * 1024 * 1024) 
-
+    
     file, header, err := c.Request.FormFile("video")
     if err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": "Error retrieving the file"})
@@ -24,13 +23,7 @@ func HandleUpload(c *gin.Context, ch *amqp.Channel, db *gorm.DB) {
     }
     defer file.Close()
 
-    if header.Size > maxUploadSize {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "File size exceeds the limit"})
-        return
-    }
-
     uploadDir := "./uploads"
-    
     if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Error creating upload directory"})
         return

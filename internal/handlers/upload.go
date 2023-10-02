@@ -15,7 +15,7 @@ import (
 )
 
 func HandleUpload(c *gin.Context, ch *amqp.Channel, db *gorm.DB) {
-    maxUploadSize := int64(10 * 1024 * 1024) // 10MB
+    maxUploadSize := int64(200 * 1024 * 1024) 
 
     file, header, err := c.Request.FormFile("video")
     if err != nil {

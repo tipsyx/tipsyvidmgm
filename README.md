@@ -7,7 +7,7 @@ This Video Management API is a web service that allows you to upload, transcribe
 
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
+ 
 - [Usage](#usage)
   - [Uploading Videos](#uploading-videos)
   - [Listing Videos](#listing-videos)
@@ -27,26 +27,6 @@ Before using the API, make sure you have the following prerequisites installed:
 - MySQL database
 - RabbitMQ server
 - Whisper API (for transcription)
-
-### Installation
-
-1. Clone the repository:
-
-   ```bash
-   git clone https://github.com/yourusername/your-repo.git
-   cd your-repo
-   ```
-
-2. Set up the configuration by editing `config/config.go` with your database and RabbitMQ credentials.
-
-3. Build and run the application:
-
-   ```bash
-   go build -o video-api
-   ./video-api
-   ```
-
-The API will be accessible at `http://localhost:8080`.
 
 ## Usage
 

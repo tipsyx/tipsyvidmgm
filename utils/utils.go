@@ -21,7 +21,14 @@ func GenerateVideoThumbnail(videoPath string, thumbnailPath string) error {
 
     return nil
 }
-func validateVideoFile(file io.Reader) bool {
+
+func validateScreenRecording(file io.Reader, filename string) bool {
+    ext := filepath.Ext(filename)
+    switch ext {
+    case ".mp4", ".avi", ".mov", ".mkv", ".webm", ".flv":
+        return true
+    } 
+    
     buffer := make([]byte, 512)
     _, err := file.Read(buffer)
     if err != nil && err != io.EOF {

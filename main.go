@@ -100,10 +100,11 @@ func main() {
 
     transcriptionWorker := worker.NewTranscriptionWorker(ch, db)
     go transcriptionWorker.Start()
-
-    r.POST("/upload", func(c *gin.Context) {
+	
+	r.POST("/upload", func(c *gin.Context) {
     	handlers.HandleUpload(c, db)
 	})
+	
 	r.GET("/playback/:id", func(c *gin.Context) {
 		handlers.VideoPlayback(c, db)
 	})
@@ -114,6 +115,10 @@ func main() {
 
 	r.GET("/videodetails/:id", func(c *gin.Context) {
 		handlers.ShowVideoDetails(c, db)
+	})
+
+	r.POST("/deletevideo", func(c *gin.Context) {
+		handlers.DeleteVideoByID(c, db)
 	})
     
     fmt.Println("Server is listening on :8080")

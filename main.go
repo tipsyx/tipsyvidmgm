@@ -21,7 +21,6 @@ import (
     _ "github.com/jinzhu/gorm/dialects/mysql"
     "github.com/jinzhu/gorm"
     "github.com/streadway/amqp"
-    "github.com/gerow/thumbs"
     
     "github.com/tipsyx/tipsyvidmgm/internal/handlers"
     "github.com/tipsyx/tipsyvidmgm/internal/worker"
@@ -47,10 +46,11 @@ func main() {
         log.Fatalf("Database connection error: %v\n", err)
     }
     defer db.Close()
+    db.AutoMigrate (&Video{})
 
     os.MkdirAll("./uploads", os.ModePerm)
 
-   conn, err := amqp.Dial(config.RabbitMQURL)
+    conn, err := amqp.Dial(config.RabbitMQURL)
     if err != nil {
         log.Fatalf("RabbitMQ connection error: %v\n", err)
         return
@@ -101,53 +101,20 @@ func main() {
     transcriptionWorker := worker.NewTranscriptionWorker(ch, db)
     go transcriptionWorker.Start()
 
-    
     r.POST("/upload", func(c *gin.Context) {
-    file, _, err := c.Request.FormFile("video")
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Error retrieving the file"})
-        return
-    }
-    defer file.Close()
+    	handlers.HandleUpload(c, db)
+	})
+	r.GET("/playback/:id", func(c *gin.Context) {
+		handlers.VideoPlayback(c, db)
+	})
 
-    isValid := utils.ValidateVideoFile(file)
-    if !isValid {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid video file format"})
-        return
-    }
+	r.GET("/listvideos", func(c *gin.Context) {
+		handlers.ListUploadedVideos(c, db)
+	})
 
-    handlers.HandleUpload(c, ch, db)
-    })
-
-    
-
-   r.GET("/playback", func(c *gin.Context) {
-    videoFileName := c.Query("videoFileName")
-
-    if videoFileName == "" {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Missing videoFileName parameter"})
-        return
-    }
-
-    handlers.ServePlaybackPage(c, db, videoFileName)
-    })
-
-
-    r.GET("/listvideos", func(c *gin.Context) {
-        handlers.ListUploadedVideos(c)
-    })
-
-    r.POST("/deletevideo", func(c *gin.Context) {
-        handlers.DeleteVideoByID(c, db)
-    })
-
-    r.GET("/videodetails/:id", func(c *gin.Context) {
-        handlers.ShowVideoDetails(c, db)
-    })
-    
-    r.GET("/getvideo/:id", func(c *gin.Context) {
-    GetVideoByID(c, db)
-    })
+	r.GET("/videodetails/:id", func(c *gin.Context) {
+		handlers.ShowVideoDetails(c, db)
+	})
     
     fmt.Println("Server is listening on :8080")
     r.Run(":8080")

@@ -90,7 +90,7 @@ func main() {
 	go transcriptionWorker.Start()
 
 	r.POST("/upload", func(c *gin.Context) {
-		handlers.HandleUpload(c, db)
+		handlers.HandleUpload(c, ch, db)
 	})
 
 	r.GET("/playback/:id", func(c *gin.Context) {
@@ -107,6 +107,9 @@ func main() {
 
 	r.POST("/deletevideo", func(c *gin.Context) {
 		handlers.DeleteVideoByID(c, db)
+	})
+	r.GET("/getvideo/:id", func(c *gin.Context){
+		handlers.GetVideoByID(c, db)
 	})
 	fmt.Println("Server is listening on :8080")
 	r.Run(":8080")

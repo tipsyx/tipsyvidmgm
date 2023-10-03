@@ -37,7 +37,4 @@ func DeleteVideoByID(c *gin.Context, db *gorm.DB) {
     }
 
     successMsg := "Video deleted successfully."
-    link := `<a href="/listvideos">Go back to the list of videos</a>`
-    successMsgWithLink := successMsg + " " + link
-    c.String(http.StatusOK, successMsgWithLink)
 }

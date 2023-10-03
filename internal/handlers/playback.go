@@ -8,8 +8,13 @@ import (
     "github.com/jinzhu/gorm"
 )
 
-func ServePlaybackPage(c *gin.Context, db *gorm.DB, videoFileName string) {
-    videoSrc := "/uploads/" + videoFileName
+func PlaybackPage(c *gin.Context, db *gorm.DB) {
+    id := c.Param("id")
+    if id == ""{
+        c.JSON(http.StatusBadRequest, gin.H{"error":"Video not found"})
+        return
+    }
+    videoSrc := filepath.Join("/uploads/",id+".mp4")
 
     html := `
     <!DOCTYPE html>
@@ -26,7 +31,7 @@ func ServePlaybackPage(c *gin.Context, db *gorm.DB, videoFileName string) {
     </html>
     `
 
-    tmpl, err := template.New("playback").Parse(html)
+    playbackTemplate, err := template.New("playback").Parse(html)
     if err != nil {
         http.Error(c.Writer, "Error rendering playback page", http.StatusInternalServerError)
         return
@@ -38,10 +43,10 @@ func ServePlaybackPage(c *gin.Context, db *gorm.DB, videoFileName string) {
         VideoSrc: videoSrc,
     }
 
-    err = tmpl.Execute(c.Writer, data)
+    err = playbackTemplate.Execute(c.Writer, data)
     if err != nil {
         http.Error(c.Writer, "Error executing page", http.StatusInternalServerError)
         return
     }
-    c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
+      c.HTML(http.StatusOK, "playback", data)
 }

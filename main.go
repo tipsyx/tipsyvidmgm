@@ -1,110 +1,98 @@
 package main
 
 import (
-    "bytes"
-    "database/sql"
-    "fmt"
-    "html/template"
-    "io"
-    "io/ioutil"
-    "log"
-    "net/http"
-    "os"
-    "os/signal"
-    "path/filepath"
-    "strconv"
-    "strings"
-    "syscall"
+	"fmt"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
+	"github.com/gin-gonic/gin"
+	"github.com/jinzhu/gorm"
+	_ "github.com/jinzhu/gorm/dialects/mysql"
+	"github.com/streadway/amqp"
 
-    "github.com/gin-gonic/gin"
-    _ "github.com/jinzhu/gorm/dialects/mysql"
-    "github.com/jinzhu/gorm"
-    "github.com/streadway/amqp"
-    
-    "github.com/tipsyx/tipsyvidmgm/internal/handlers"
-    "github.com/tipsyx/tipsyvidmgm/internal/worker"
-    "github.com/tipsyx/tipsyvidmgm/config"
-    "github.com/tipsyx/tipsyvidmgm/utils"
+	"github.com/tipsyx/tipsyvidmgm/config"
+	"github.com/tipsyx/tipsyvidmgm/internal/handlers"
+	"github.com/tipsyx/tipsyvidmgm/internal/worker"
 )
 
 var ch *amqp.Channel
 var db *gorm.DB
 
 type Video struct {
-    gorm.Model
-    Filename     string
-    Transcription string
+	gorm.Model
+	Filename     string
+	Transcription string
 }
 
 func main() {
-    r := gin.Default()
+	r := gin.Default()
 
-    var err error
-    db, err = gorm.Open("mysql", config.DatabaseDSN)
-    if err != nil {
-        log.Fatalf("Database connection error: %v\n", err)
-    }
-    defer db.Close()
-    db.AutoMigrate (&Video{})
+	var err error
+	db, err = gorm.Open("mysql", config.DatabaseDSN)
+	if err != nil {
+		log.Fatalf("Database connection error: %v\n", err)
+	}
+	defer db.Close()
+	db.AutoMigrate(&Video{})
 
-    os.MkdirAll("./uploads", os.ModePerm)
+	os.MkdirAll("./uploads", os.ModePerm)
 
-    conn, err := amqp.Dial(config.RabbitMQURL)
-    if err != nil {
-        log.Fatalf("RabbitMQ connection error: %v\n", err)
-        return
-    }
-    defer conn.Close()
+	conn, err := amqp.Dial(config.RabbitMQURL)
+	if err != nil {
+		log.Fatalf("RabbitMQ connection error: %v\n", err)
+		return
+	}
+	defer conn.Close()
 
-    ch, err := conn.Channel()
-    if err != nil {
-        log.Fatalf("Failed to open a channel: %v", err)
-        return
-    }
-    defer ch.Close()
+	ch, err := conn.Channel()
+	if err != nil {
+		log.Fatalf("Failed to open a channel: %v", err)
+		return
+	}
+	defer ch.Close()
 
-    err = ch.Publish(
-        "videomgmex", // Exchange name
-        "routekey",   // Routing key
-        false,
-        false,
-        amqp.Publishing{
-            ContentType: "text/plain",
-            Body:        []byte("Hello, RabbitMQ!"),
-        },
-    )
-    if err != nil {
-        log.Fatalf("Failed to publish a message: %v", err)
-    }
+	err = ch.Publish(
+		"videomgmex", // Exchange name
+		"routekey",   // Routing key
+		false,
+		false,
+		amqp.Publishing{
+			ContentType: "text/plain",
+			Body:        []byte("Hello, RabbitMQ!"),
+		},
+	)
+	if err != nil {
+		log.Fatalf("Failed to publish a message: %v", err)
+	}
 
-    msgs, err := ch.Consume(
-        "queueA", // Queue name
-        "",       // Consumer name
-        true,
-        false,
-        false, // No-local
-        false, // No-wait
-        nil,   // Arguments
-    )
-    if err != nil {
-        log.Fatalf("Failed to register: %v", err)
-    }
+	msgs, err := ch.Consume(
+		"queueA", // Queue name
+		"",       // Consumer name
+		true,
+		false,
+		false, // No-local
+		false, // No-wait
+		nil,   // Arguments
+	)
+	if err != nil {
+		log.Fatalf("Failed to register: %v", err)
+	}
 
+	go func() {
+		for msg := range msgs {
+			log.Printf("Received a message: %s", msg.Body)
+		}
+	}()
 
-    go func() {
-        for msg := range msgs {
-            log.Printf("Received a message: %s", msg.Body)
-        }
-    }()
+	transcriptionWorker := worker.NewTranscriptionWorker(ch, db)
+	go transcriptionWorker.Start()
 
-    transcriptionWorker := worker.NewTranscriptionWorker(ch, db)
-    go transcriptionWorker.Start()
-	
 	r.POST("/upload", func(c *gin.Context) {
-    	handlers.HandleUpload(c, db)
+		handlers.HandleUpload(c, db)
 	})
-	
+
 	r.GET("/playback/:id", func(c *gin.Context) {
 		handlers.VideoPlayback(c, db)
 	})
@@ -120,16 +108,15 @@ func main() {
 	r.POST("/deletevideo", func(c *gin.Context) {
 		handlers.DeleteVideoByID(c, db)
 	})
-    
-    fmt.Println("Server is listening on :8080")
-    r.Run(":8080")
+	fmt.Println("Server is listening on :8080")
+	r.Run(":8080")
 
-    stop := make(chan os.Signal, 1)
-    signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
-    <-stop
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+	<-stop
 
-    fmt.Println("Shutting down...")
-    db.Close()
+	fmt.Println("Shutting down...")
+	db.Close()
 
-    fmt.Println("Server has shut down.")
+	fmt.Println("Server has shut down.")
 }

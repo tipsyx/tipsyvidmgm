@@ -42,15 +42,16 @@ func ShowVideoDetails(c *gin.Context, db *gorm.DB) {
     </html>
     `
 
-    tmpl, err := template.New("videoDetails").Parse(html)
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Error rendering video details"})
-        return
-    }
+    videoDetailsTemplate, err := template.New("videoDetails").Parse(html)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error rendering video details"})
+		return
+	}
 
-    c.Header("Content-Type", "text/html; charset=utf-8")
-    if err := tmpl.Execute(c.Writer, video); err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Error executing template"})
-        return
-    }
+	err = videoDetailsTemplate.Execute(c.Writer, video)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error rendering video details"})
+		return
+	}
 }
+
